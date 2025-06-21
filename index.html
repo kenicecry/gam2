@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>韩文单词记忆游戏</title>
+<script src="https://cdn.jsdelivr.net/pyodide/v0.24.0/full/pyodide.js"></script>
+<style>
+  body {
+    font-family: 'Arial', sans-serif;
+    background: #ffffff;
+    text-align: center;
+    padding: 1em;
+    color: #333;
+    max-width: 1024px;
+    margin: 0 auto;
+  }
+  h1 {
+    margin-bottom: 0.5em;
+    font-size: 2.5em;
+  }
+  #progress {
+    font-size: 1.8em;
+    margin-bottom: 1em;
+  }
+  #question {
+    font-size: 2.8em;
+    margin: 0.8em 0;
+    min-height: 1.5em;
+  }
+  .option-btn {
+    display: block;
+    margin: 0.8em auto;
+    font-size: 2.2em;
+    padding: 0.8em 1.6em;
+    width: 80%;
+    max-width: 500px;
+    cursor: pointer;
+    border-radius: 15px;
+    border: 3px solid #a3c293;
+    background: #d7f3d3;
+    transition: background 0.3s, color 0.3s;
+  }
+  .option-btn:hover {
+    background: #b5e0a4;
+  }
+  #feedback {
+    font-size: 2.2em;
+    height: 2em;
+    margin: 1em 0;
+    font-weight: bold;
+    min-height: 1.5em;
+  }
+  #score {
+    font-size: 2em;
+    margin-top: 1.2em;
+  }
+  #next-btn, #home-btn, #restart-btn {
+    margin-top: 1.5em;
+    font-size: 2em;
+    padding: 0.8em 1.6em;
+    cursor: pointer;
+    border-radius: 15px;
+    background: #6fa06f;
+    color: white;
+    border: none;
+    display: none;
+    margin: 0.8em;
+    width: 80%;
+    max-width: 400px;
+  }
+  #next-btn:hover, #home-btn:hover, #restart-btn:hover {
+    background: #4a7d4a;
+  }
+  #image {
+    max-width: 300px;
+    margin: 1em auto;
+    display: block;
+  }
+  .button-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  @media (max-width: 768px) {
+    h1 {
+      font-size: 2em;
+    }
+    #progress {
+      font-size: 1.5em;
+    }
+    #question {
+      font-size: 2em;
+    }
+    .option-btn {
+      font-size: 1.8em;
+    }
+    #feedback {
+      font-size: 1.8em;
+    }
+    #next-btn, #home-btn, #restart-btn {
+      font-size: 1.6em;
+    }
+  }
+</style>
+</head>
+<body>
+
+<h1>韩文单词记忆游戏</h1>
+<div id="progress">题目 0 / 0</div>
+<div id="question">加载中...</div>
+<img id="image" src="" alt="题目图片" style="display:none;">
+<div id="options"></div>
+<div id="feedback"></div>
+<div class="button-container">
+  <button id="next-btn">次へ（下一题）</button>
+  <button id="home-btn">回首頁</button>
+  <button id="restart-btn">重新开始</button>
+</div>
+<div id="score"></div>
+
+<script>
+let pyodide = null;
+let gameReady = false;
+
+async function initPyodideAndGame() {
+  pyodide = await loadPyodide();
+
+  const pythonCode = `
+import random
+
+word_data = [
+    ("にゅうにゅう(牛奶)", ["우유", "주스", "빵"], 0, "1.jpg"),
+    ("ジュース(果汁)", ["주스", "우유", "사탕"], 0, "2.jpg"),
+    ("おかし(饼干)", ["과자", "사탕", "빵"], 0, "3.jpg"),
+    ("パン(面包)", ["빵", "과자", "아이스크림"], 0, "4.jpg"),
+    ("キャンディ(糖果)", ["사탕", "아이스크림", "주스"], 0, "5.jpg"),
+    ("アイスクリーム(冰淇淋)", ["아이스크림", "사탕", "빵"], 0, "6.jpg"),
+    ("ねこ(猫)", ["고양이", "강아지", "곰"], 0, "7.jpg"),
+    ("こいぬ(小狗)", ["강아지", "토끼", "곰"], 0, "8.jpg"),
+    ("うさぎ(兔子)", ["토끼", "강아지", "고양이"], 0, "9.jpg"),
+    ("くま(熊)", ["곰", "고양이", "토끼"], 0, "10.jpg"),
+    ("せんせい(老师)", ["선생님", "책상", "의자"], 0, "11.jpg"),
+    ("つくえ(书桌)", ["책상", "의자", "칠판"], 0, "12.jpg"),
+    ("いす(椅子)", ["의자", "책상", "공책"], 0, "13.jpg"),
+    ("こくばん(黑板)", ["칠판", "시계", "책"], 0, "14.jpg"),
+    ("とけい(时钟)", ["시계", "칠판", "지우개"], 0, "15.jpg"),
+    ("けしゴム(橡皮擦)", ["지우개", "연필", "책"], 0, "16.jpg"),
+    ("ほん(书)", ["책", "공책", "연필"], 0, "17.jpg"),
+    ("ノート(笔记本)", ["공책", "책", "지우개"], 0, "18.jpg"),
+    ("えんぴつ(铅笔)", ["연필", "지우개", "공책"], 0, "19.jpg")
+]
+
+
+current_index = 0
+score = 0
+shuffled_data = []
+
+def reset():
+    global current_index, score, shuffled_data
+    current_index = 0
+    score = 0
+    shuffled_data = []
+    for q in word_data:
+        options = q[1][:]
+        correct_index = q[2]
+        correct_answer = options[correct_index]
+        random.shuffle(options)
+        new_index = options.index(correct_answer)
+        shuffled_data.append((q[0], options, new_index, q[3]))
+
+def get_question():
+    global current_index
+    if current_index >= len(shuffled_data):
+        return None
+    q = shuffled_data[current_index]
+    return {"question": q[0], "options": q[1], "image": q[3]}
+
+def check_answer(selected_index):
+    global current_index, score
+    if current_index >= len(shuffled_data):
+        return None
+    correct = shuffled_data[current_index][2]
+    is_correct = (selected_index == correct)
+    if is_correct:
+        score += 1
+    current_index += 1
+    return is_correct
+
+def get_score():
+    return score
+
+def get_progress():
+    return (min(current_index + 1, len(shuffled_data)), len(shuffled_data))
+
+reset()
+`;
+  await pyodide.runPythonAsync(pythonCode);
+  gameReady = true;
+  loadNextQuestion();
+}
+
+function loadNextQuestion() {
+  if (!gameReady) return;
+
+  const question = pyodide.runPython("get_question()");
+  if (!question) return showFinalScore();
+
+  const progress = pyodide.runPython("get_progress()");
+  document.getElementById("progress").innerText = `题目 ${progress[0]} / ${progress[1]}`;
+  document.getElementById("question").innerText = question.get("question");
+
+  const options = question.get("options").toJs();
+  const imageSrc = question.get("image");
+
+  const optionsDiv = document.getElementById("options");
+  optionsDiv.innerHTML = "";
+  document.getElementById("feedback").innerText = "";
+  document.getElementById("next-btn").style.display = "none";
+  document.getElementById("home-btn").style.display = "none";
+  document.getElementById("restart-btn").style.display = "none";
+
+  const img = document.getElementById("image");
+  img.src = imageSrc;
+  img.style.display = "block";
+
+  options.forEach((opt, i) => {
+    const btn = document.createElement("button");
+    btn.className = "option-btn";
+    btn.textContent = opt;
+    btn.onclick = () => selectAnswer(i);
+    optionsDiv.appendChild(btn);
+  });
+}
+
+function selectAnswer(index) {
+  if (!gameReady) return;
+
+  const result = pyodide.runPython(`check_answer(${index})`);
+
+  const feedbackEl = document.getElementById("feedback");
+  const img = document.getElementById("image");
+
+  if (result === true) {
+    feedbackEl.style.color = "green";
+    feedbackEl.innerText = "正解です！答对了！🎉";
+    img.src = "比ya.png";
+  } else {
+    const correctIndex = pyodide.runPython("shuffled_data[current_index - 1][2]");
+    const correctOption = pyodide.runPython(`shuffled_data[current_index - 1][1][${correctIndex}]`);
+    feedbackEl.style.color = "red";
+    feedbackEl.innerText = `間違えました！答錯了😢 正解は（正确答案是）：${correctOption}`;
+    img.src = "合十.png";
+  }
+
+  document.querySelectorAll(".option-btn").forEach(btn => btn.disabled = true);
+  document.getElementById("next-btn").style.display = "inline-block";
+
+  const score = pyodide.runPython("get_score()");
+  document.getElementById("score").innerText = `当前得分：${score}`;
+}
+
+function showFinalScore() {
+  const score = pyodide.runPython("get_score()");
+  document.getElementById("question").innerText = "游戏结束！🎊";
+  document.getElementById("options").innerHTML = "";
+  document.getElementById("feedback").innerText = `你的总得分是：${score} / 20`;
+  document.getElementById("next-btn").style.display = "none";
+  document.getElementById("home-btn").style.display = "inline-block";
+  document.getElementById("restart-btn").style.display = "inline-block";
+}
+
+document.getElementById("next-btn").addEventListener("click", loadNextQuestion);
+document.getElementById("home-btn").addEventListener("click", () => {
+  pyodide.runPython("reset()");
+  loadNextQuestion();
+});
+document.getElementById("restart-btn").addEventListener("click", () => {
+  pyodide.runPython("reset()");
+  loadNextQuestion();
+});
+
+initPyodideAndGame();
+</script>
+</body>
+</html>
