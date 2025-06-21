@@ -264,7 +264,7 @@ function showFinalScore() {
   const score = pyodide.runPython("get_score()");
   document.getElementById("question").innerText = "游戏结束！🎊";
   document.getElementById("options").innerHTML = "";
-  document.getElementById("feedback").innerText = `你的总得分是：${score} / 20`;
+  document.getElementById("feedback").innerText = `你的总得分是：${score} / 19`;
   document.getElementById("next-btn").style.display = "none";
   document.getElementById("home-btn").style.display = "inline-block";
   document.getElementById("restart-btn").style.display = "inline-block";
